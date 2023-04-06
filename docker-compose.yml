@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+  etd:
+    image: python:3.11.2-slim-buster
+    volumes:
+      - '.:/code'
+    #  - '\\Lincoln\Library\ETDs:/ETDs'
+    working_dir: /code
+    stdin_open: true
+    tty: true
+    command: >
+      bash -c "pip install -r requirements.txt && /bin/bash"
