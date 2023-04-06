@@ -150,23 +150,24 @@ for etd in tqdm(xml_list):
 		# for others use fuzzy matching
 		if match_count == 0:
 			for record in records:
-				compare_ratio = fuzz.ratio(title_text, record[0])
+				compare_title = fuzz.ratio(title_text, record[0])
+				compare_authors = fuzz.ratio(fullname, record[1])
 				# 80 is probably good
-				if compare_ratio > 80:
+				if compare_title > 80 or compare_authors > 80:
 					match_count += 1
 					catalog_id = record[2]
-				else:
-					compare_authors = fuzz.ratio(fullname, record[1])
-					if compare_ratio < 50:
-						# < 50 is probably junk authors gotta match say > 85
-						if compare_authors > 85:
-							match_count += 1
-							catalog_id = record[2]
-					else:
-						# for 50-80, match if authors are > 70
-						if compare_authors > 70:
-							match_count += 1
-							catalog_id = record[2]
+				elif compare_title > 50 and compare_authors > 50:
+					match_count += 1
+					catalog_id = record[2]
+			if match_count == 0:
+				# if still no matches, try compating the stripped lowercase
+				for record in records:
+					stipped_xml = re.sub(r'[^a-zA-Z0-9]\s', ' ', title_text.lower())
+					stipped_catalog = re.sub(r'[^a-zA-Z0-9]\s', ' ', record[0].lower())
+					compare_stripped = fuzz.ratio(stipped_xml, stipped_catalog)
+					if compare_stripped > 80:
+						match_count += 1
+						catalog_id = record[2]
 
 
 
@@ -175,6 +176,8 @@ for etd in tqdm(xml_list):
 			found += 1
 			output.append([catalog_id, xml_id])
 		else:
+			if match_count > 1:
+				print (f"multiple {str(match_count)} matches --> {xml_id}")
 			missing += 1
 			missing_list.append(title_text)
 
