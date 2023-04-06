@@ -29,14 +29,13 @@ for sheet in wb.worksheets:
 
 			# why is there other junk in the title field?
 			# This gets all the text before " / ". Dunno if this is safe
-			title = title_text.split(" / ")[0]
 			if " / by " in title_text:
-				author = title_text.split(" / by ")[1]
+				title, author = title_text.split(" / by ")
 			elif " / " in title_text:
-				author = title_text.split(" / ")[1]
+				title, author = title_text.split(" / ")
 			else:
 				#print (title_text)
-				author = title_text.split(" by ")[1]
+				title, author = title_text.split(" by ")
 
 			# add to records as a list
 			records.append([title, author, mms_id])
