@@ -89,7 +89,7 @@ for sheet in wb.worksheets:
 
 # Set up the bepress API calls
 token_file = open("token.txt", "r")
-token = token_file.readline()
+token = token_file.read().strip()
 token_file.close()
 bepressURL = "https://content-out.bepress.com/v2/scholarsarchive.library.albany.edu/query"
 headers = {"Authorization": token}
