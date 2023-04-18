@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import json
+import time
 import requests
 import openpyxl
 import urllib.parse
@@ -47,6 +48,33 @@ def isMatch(result, title, author, date):
             return True
         else:
             return False
+
+# bepress often 504s, wonderful
+# It also just disconnects without sending a response so we have to try/except
+# this fuction manages bepress api calls and tries again after 500 or 504 errors
+def bepress(query, headers):
+    try_count = 0
+    while try_count < 10:
+        try:
+            r = requests.get(query, headers=headers)
+            if r.status_code == 200:
+                return r
+            else:
+                print (r.text)
+                if str(r.status_code).startswith("5"):
+                    try_count += 1
+                    print (f"Waiting before try {str(try_count)}...")
+                    time.sleep(10)
+                    # Will continue the while loop
+                else:
+                    raise ValueError(f"ERROR: bepress returned {str(r.status_code)}")
+        except:
+            print ("Dropped connection. Waiting and then trying again...")
+            time.sleep(10)
+            try_count += 1
+
+    raise ValueError(f"ERROR: Number of tries exceeded.")
+
 
 # Build the catalog data into a list in memory so we can find stuff in it later
 records = []
@@ -128,33 +156,32 @@ with open(output_path, "r") as csv_file:
                     query = f"{bepressURL}?q={escaped_title} {escaped_author}"
                     #print (query)
                     #print (escaped_title)
-                    r = requests.get(query, headers=headers)
-                    if r.status_code != 200:
-                        print (r.text)
-                        raise ValueError(f"ERROR: bepress returned {str(r.status_code)}")
+
+                    # query bepress api
+                    r = bepress(query, headers)
+
+                    match = False
+                    hits = r.json()["query_meta"]["total_hits"]
+                    #print (f"Found {hits} results.")
+
+                    matchURL = ""
+                    matches = 0
+                    for result in r.json()["results"]:
+                        #print (json.dumps(result, indent=4))
+                        if isMatch(result, title, author, date):
+                            matches += 1
+                            matchURL = result["url"]
+
+                    if matches == 1:
+                        print ("found match!")
+                        sa_match_count += 1
+                        match_row = [row[0], row[1], title, author, date, matchURL]
                     else:
-                        match = False
-                        hits = r.json()["query_meta"]["total_hits"]
-                        #print (f"Found {hits} results.")
+                        match_row = [row[0], row[1], title, author, date, ""]
 
-                        matchURL = ""
-                        matches = 0
-                        for result in r.json()["results"]:
-                            #print (json.dumps(result, indent=4))
-                            if isMatch(result, title, author, date):
-                                matches += 1
-                                matchURL = result["url"]
-
-                        if matches == 1:
-                            print ("found match!")
-                            sa_match_count += 1
-                            match_row = [row[0], row[1], title, author, date, matchURL]
-                        else:
-                            match_row = [row[0], row[1], title, author, date, ""]
-
-                        with open(os.path.join(catalog_root, "sa_matches.csv"), "a", newline="", encoding="utf8") as f:
-                            writer = csv.writer(f)
-                            writer.writerow(match_row)
+                    with open(os.path.join(catalog_root, "sa_matches.csv"), "a", newline="", encoding="utf8") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(match_row)
 
     print (f"Of {line_count - 1} ETDs, found {sa_match_count} matches in Scholar's Archive")
 
