@@ -18,8 +18,9 @@ count = 0
 pubs = {}
 embargos = {}
 third = {}
-
 unknown = {}
+
+embargoDates = []
 
 for etd in xml_list:
 	# get the full path
@@ -49,8 +50,21 @@ for etd in xml_list:
 		embargos[embargo] += 1
 	else:
 		embargos[embargo] = 1
-	if embargo == "4":
-		print (root.xpath("//DISS_description/DISS_title")[0].text)
+	if embargo == "3":
+		print ("embargo --> " + root.xpath("//DISS_description/DISS_dates/DISS_comp_date")[0].text)
+	elif embargo == "4":
+		names = []
+		if root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_fname")[0].text:
+			names.append(root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_fname")[0].text)
+		if root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_middle")[0].text:
+			names.append(root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_middle")[0].text)
+		if root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_surname")[0].text:
+			names.append(root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_surname")[0].text)
+		if root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_suffix")[0].text:
+			names.append(root.xpath("//DISS_authorship/DISS_author/DISS_name/DISS_suffix")[0].text)
+
+		embargoList = [" ".join(names), root.xpath("//DISS_description/DISS_dates/DISS_comp_date")[0].text, root.xpath("//DISS_description/DISS_title")[0].text]
+		embargoDates.append(embargoList)
 		if root.attrib['publishing_option'] in unknown.keys():
 			unknown[root.attrib['publishing_option']] += 1
 		else:
@@ -64,8 +78,16 @@ for etd in xml_list:
 	#if len(contact) == 0:
 	#	print (dates[0].text)
 
+	advisors = dates = root.xpath("//DISS_description/DISS_advisor")
+	if len(advisors) > 2:
+		print (advisors)
+
 
 print (pubs)
 print (embargos)
 print (third)
 print (unknown)
+
+
+for e in embargoList:
+	print (e)

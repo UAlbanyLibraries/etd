@@ -162,7 +162,7 @@ with open(output_path, "r") as csv_file:
 
                     match = False
                     hits = r.json()["query_meta"]["total_hits"]
-                    #print (f"Found {hits} results.")
+                    print (f"Found {hits} results.")
 
                     matchURL = ""
                     matches = 0
