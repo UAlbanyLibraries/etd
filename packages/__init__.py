@@ -166,8 +166,8 @@ class ETD:
                         fullname.append(suffix)
                         metadata["Suffix"] = suffix
 
-        author = " ".join(fullname)
-        metadata["Author"] = author
+        author_string = " ".join(fullname)
+        metadata["Author"] = author_string
         self.etd_id = last_name.replace(" ", "_") + "-" + shortuuid.uuid()
         metadata["Bag-Identifier"] = self.etd_id
 
