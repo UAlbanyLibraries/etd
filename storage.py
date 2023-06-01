@@ -2,7 +2,10 @@ import os
 from tqdm import tqdm
 from packages import ETD
 
-testDir = "\\\\Lincoln\\Library\\ETDs\\Zipped"
+if os.name == "nt":
+	testDir = "\\\\Lincoln\\Library\\ETDs\\Zipped"
+else:
+	testDir = "/media/Library/ETDs/Zipped"
 
 #testFile = os.path.join(testDir, "etdadmin_upload_39129.zip")
 
