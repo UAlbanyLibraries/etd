@@ -14,7 +14,7 @@ pip install -r requirements.txt
 
 ## ETD Packages
 
-```
+```python
 from packages import ETD
 
 etd = ETD()
@@ -23,7 +23,7 @@ etd.load(path/to/dir)
 
 #### ETD objects have useful data attributes
 
-```
+```python
 print (etd.etd_id)
 > lastname-ZbNhwXqECGjEEKgUaxAjWL
 print (etd.year)
@@ -37,7 +37,7 @@ if etd.supplemental:
 
 #### ETD objects also contain useful paths
 
-```
+```python
 print (etd.year_dir)
 > /full/path/to/ETDs/2014
 print (etd.bagDir)
@@ -54,7 +54,7 @@ print (etd.pdf_file)
 
 bag.info is a dict of bag-info.txt metadata
 
-```
+```python
 print (etd.bag.info["Author"])
 > Fullname O. Author
 print (etd.bag.info["Submitted-Title"])
@@ -74,9 +74,11 @@ print (etd.bag.info["Zip-ID"])
 > etdadmin_upload_145229
 ```
 
+The ETD bag-info.txt metadata should validate via [Bagit-Profiles](https://bagit-profiles.github.io/bagit-profiles-specification/) against [https://archives.albany.edu/static/bagitprofiles/etd-profile-v0.1.json](https://archives.albany.edu/static/bagitprofiles/etd-profile-v0.1.json).
+
 #### Validate it just like [bagit python](https://github.com/LibraryOfCongress/bagit-python)
 
-```
+```python
 if etd.bag.is_valid():
     print("yay :)")
 else:
