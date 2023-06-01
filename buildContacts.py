@@ -5,7 +5,7 @@ from lxml import etree
 
 etd_root = "\\\\Lincoln\\Library\\ETDs\\Unzipped"
 
-out_list = [["xml_id", "name", "email", "complete_date", "accept_date"]]
+out_list = [["Opt out", "xml_id", "name", "title", "email in XML", "response", "complete_date", "accept_date", "email 2", "email 3"]]
 
 xml_list = []
 for thing in os.listdir(etd_root):
