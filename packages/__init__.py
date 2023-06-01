@@ -49,7 +49,7 @@ class ETD:
                 self.supplemental_files = self.bag.info["Supplemental-Path"]
 
 
-    def check_embargo(self, last_name, first_name):
+    def check_embargo(self, xml_id, last_name, first_name):
         embargo_file = os.path.join(self.working_path, "embargos.xlsx")
         if not os.path.isfile(embargo_file):
             raise Exception(f"ERROR: Embargo export sheet {embargo_file} not present")
@@ -58,6 +58,7 @@ class ETD:
         wb = openpyxl.load_workbook(filename = embargo_file)
         sheet = wb.active
         embargo_date = None
+
         for row in sheet:
             title = row[2].value.strip()
             lname = row[5].value.strip()
@@ -65,11 +66,18 @@ class ETD:
             embargo = row[10].value.strip()
             degree_date = row[9].value.strip()
 
-            if last_name.lower().strip() == lname.lower() and first_name.lower().strip() in fname.lower():
+            # the last integer of the xml_id is listed in the first column of the embargo spreadsheet
+            if row[0].value == xml_id.rsplit('_', 1)[1] and last_name.lower().strip() in lname.lower():
                 match_count += 1
                 if "-" in embargo:
-                    #print (embargo)
                     embargo_date = datetime.strptime(embargo, "%Y-%m-%d").date()
+                break
+            else:
+                if last_name.lower().strip() == lname.lower() and first_name.lower().strip() in fname.lower():
+                    match_count += 1
+                    if "-" in embargo:
+                        #print (embargo)
+                        embargo_date = datetime.strptime(embargo, "%Y-%m-%d").date()
 
         # Returns None if a good date isn't found
         if match_count != 1:
@@ -206,7 +214,7 @@ class ETD:
             elif embargo == "4":
                 metadata["Embargo-Type"] = "Specified Date"
                 # Go read the spreadsheet to see if embargos are there
-                embargo_date = self.check_embargo(last_name, first_name)
+                embargo_date = self.check_embargo(self.xml_id, last_name, first_name)
                 if embargo_date is None:
                     embargo_end = "Unknown"
                 else:
