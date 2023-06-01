@@ -267,22 +267,23 @@ class ETD:
         if not os.path.isfile(self.pdf_file):
             raise Exception(f"ERROR: Package {self.xml_id} missing PDF file {self.pdf_file}")
         #check if theres a supplemental materials folder with files
-        there = 0
+        there = False
+        sup_folders = 0
         for thing in os.listdir(self.data):
             if os.path.isdir(os.path.join(self.data, thing)):
+                sup_folders += 1
                 for subthing in os.listdir(os.path.join(self.data, thing)):
                     if os.path.isfile(os.path.join(self.data, thing, subthing)):
-                        there += 1
+                        there = True
                         self.supplemental_files = os.path.join(self.data, thing, subthing)
                         self.bag.info["Supplemental-Path"] = self.supplemental_files
         if self.supplemental:
-            if there != 1:
+            if not there or sup_folders != 1:
                 raise Exception(f"ERROR: Package {self.xml_id} missing supplemental materials")
-        elif there == 1:
+        elif there:
             raise Exception(f"ERROR: Package {self.xml_id} contains supplemental materials not listed in XML")
 
         # Save bag
-        #print ("saving bag")
         self.bag.save(manifests=True)
 
         # Delete temp contents after move
