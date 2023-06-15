@@ -1,8 +1,12 @@
 import csv
 import requests
 import os
+import sys
+import getopt
 import xlwt
+from etd import ETD
 from lxml import etree
+import envconfig
 
 def main(argv):
     print('Initiating...');
@@ -32,7 +36,7 @@ def main(argv):
         print('Input File not set')
     elif not output_file:
         print('Output File not set')
-    else
+    else:
         print('Gathering data...')
         
         #create output workbook
@@ -64,7 +68,7 @@ def main(argv):
             {'input':'',    'output':'degree_name'},
             {'input':'',    'output':'department'},
             {'input':'',    'output':'distribution_license'},
-            {'input':'060',    'output':'document_type'},
+            {'input':'060','output':'document_type'},
             {'input':'',    'output':'doi'},
             {'input':'',    'output':'embargo_date'},
             {'input':'',    'output':'genre_form'},
@@ -72,7 +76,7 @@ def main(argv):
             {'input':'',    'output':'media_type'},
             {'input':'',    'output':'oa_licenses'},
             {'input':'',    'output':'orcid'},
-            {'input':'300',    'output':'phys_desc'},
+            {'input':'300','output':'phys_desc'},
             {'input':'date_of_publication','output':'publication_date'},
             {'input':'',    'output':'season'},
             {'input':'',    'output':'rights_statements'},
@@ -88,14 +92,14 @@ def main(argv):
             input_reader = csv.reader(input_csv)
             input_headers = next(input_reader)
             
-            for row_count,row in enumerate(input_reader):
+            for row_count,row_array in enumerate(input_reader):
                 mms_id = row_array[0]
                 etd_id = row_array[1]
                 xml_id = row_array[2]
                 year   = row_array[3]
                 
                 # retrieve records and flatten
-                bib_record = get_bib(mmsid)
+                bib_record = get_bib(mms_id)
                 etd_record = get_etd(etd_id, xml_id, year)
                 data = flatten_data(headers,bib_record,etd_record)
                 
@@ -113,7 +117,10 @@ def flatten_data(headers,bib_record,etd_record):
     etd_xml = etree.fromstring(etd_record.xml_file)
     
     for header in headers:
-        match header['input']:
+        header_input = header['input']
+        
+        
+        match header_input:
             case 'title' | 'mms_id' | 'date_of_publication': #taken from bib data json
                 data[header['output']] = bib_record[header['input']]
             case '050' | '060' | '300': #taken from bib data xml
@@ -144,7 +151,7 @@ def flatten_data(headers,bib_record,etd_record):
                 disciplines = ''
                 
                 for category in categories:
-                    disciplines = disciplines.join(category.find('DISS_cat_desc').text
+                    disciplines = disciplines.join(category.find('DISS_cat_desc')).text
                 data[header['output']] = disciplines
             case _: #unassigned elsewhere, leave blank for now
                 data[header['output']] = ''
@@ -152,7 +159,7 @@ def flatten_data(headers,bib_record,etd_record):
     return data
     
 def get_bib(mmsid):
-    url = 'https://api-na.hosted.exlibrisgroup.com/almaws/v1/bibs/' + mmsid + '?apikey=l8xxfcd6b610fe4647e58bc95edc4a629ca0'
+    url = 'https://api-na.hosted.exlibrisgroup.com/almaws/v1/bibs/' + mmsid + '?apikey=' + envconfig.api_key
     headers = {'Accept':'application/json'}
     
     response = requests.post(url, headers=headers);
