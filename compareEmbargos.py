@@ -1,98 +1,84 @@
 import os
+import csv
 import openpyxl
 from tqdm import tqdm
-from lxml import etree
+from packages import ETD
 from datetime import datetime
 
-embargoSheetFile = "\\\\Lincoln\\Library\\ETDs\\MMSIDs\\ETD Embargoed Submissions 1-2008 to 5-19-23.xlsx"
 catalogEmbargosFile = "\\\\Lincoln\\Library\\ETDs\\MMSIDs\\MMSID_2008_2022EMBARGOED.xlsx"
-etdDir = "\\\\Lincoln\\Library\\ETDs\\Unzipped"
+outputFile = "\\\\Lincoln\\Library\\ETDs\\ETDWorkspace\\output.csv"
+etd_root = "\\\\Lincoln\\Masters\\ETD-storage"
 
-compare_list = []
+etd_list = []
+embargo_list = []
+with open(outputFile, newline='', encoding="utf-8") as csvfile:
+	reader = csv.reader(csvfile)
+	for row in reader:
+		#print (row)
+		etd_list.append([row[0], row[1], row[3]])
+		if len(row[4]) > 0:
+			embargo_list.append(row)
 
-wb = openpyxl.load_workbook(filename = embargoSheetFile)
+wb = openpyxl.load_workbook(filename = catalogEmbargosFile)
 
 present = datetime.now().date()
 
-grad_school_count = 0
+catalog_embargo_count = 0
 sheet = wb.active
 
+outputList = [["Issue", "ETD ID", "Year", "Embargo Clear Date", "Author", "Title"]]
+match_list = []
+
+# For all the catalog embargos, are they active?
 for row in sheet:
-	title = row[2].value
-	lname = row[5].value
-	fname = row[6].value
-	embargo = row[10].value
-	degree_date = row[9].value
+	catalog_embargo_count += 1
+	if catalog_embargo_count > 1:
+		if " / by " in row[3].value:
+			title, author = row[3].value.split(" / by ")
+		else:
+			title, author = row[3].value.split(" / ")
+		mms_id = row[24].value
+		
+		match = False
+		for etd in etd_list:
+			if mms_id == etd[0]:
+				match = True
+				etd_id = etd[1]
+				year = etd[2]
 
 
-	if "-" in embargo:
-		#print (embargo)
-		embargo_date = datetime.strptime(embargo, "%Y-%m-%d").date()
+		if match == False:
+			#raise Exception(f"Cannot find {mms_id}")
+			outputList.append(["No ETD", mms_id, "", "", author, title])
+		else:
+			etd_path = os.path.join(etd_root, year, etd_id)
 
-		if embargo_date > present:
-			grad_school_count += 1
-			#print (embargo)
+			etd = ETD()
+			etd.load(etd_path)
+			if etd.bag.info["Embargo-Active"] == "True":
+				#print ("embargo!")
+				match_list.append(mms_id)
+			elif etd.bag.info["Embargo"] == "True":
+				print (f"Expired embargo for {mms_id}")
+				outputList.append(["Expired", mms_id, etd.etd_id, etd.bag.info["Completion-Date"], author, title])
+			else:
+				print (f"No embargo for {mms_id}")
+				outputList.append(["No embargo", mms_id, etd.etd_id, etd.bag.info["Completion-Date"], author, title])
+	
 
-	compare_list.append([lname, fname])
+print (f"Catalog count: {catalog_embargo_count}")
 
-print (f"Grad School data: {grad_school_count}")
+with open("\\\\Lincoln\\Library\\ETDs\\ETDWorkspace\\catalog_embargo_issues.csv", "w", newline="", encoding="utf-8") as f:
+	writer = csv.writer(f)
+	writer.writerows(outputList)
 
-for etd in os.listdir(etdDir):
-	if etd.endswith(".xml"):
-		xml_file = os.path.join(etdDir, etd)
-		xml_id = etd.split("_DATA")[0]
+missing_embargos = []
+for embargoed_etd in embargo_list:
+	if embargoed_etd[0] in match_list:
+		pass
+	else:
+		missing_embargos.append(embargoed_etd)
 
-		tree = etree.parse(xml_file)
-		# Get the root <DISS_submission> element
-		root = tree.getroot()
-
-		embargo = root.attrib['embargo_code']
-
-		for author in root.find("DISS_authorship"):
-
-			name_count = 0
-			fullname = []
-			for name in author:
-				if name.tag == "DISS_name":
-					name_count += 1
-					if name_count != 1:
-						raise ValueError(f"{etd} has multiple names")
-					# safely build the name
-					if name.find("DISS_fname").text:
-						first_name = name.find("DISS_fname").text
-						fullname.append(name.find("DISS_fname").text.title())
-					if name.find("DISS_middle").text:
-						fullname.append(name.find("DISS_middle").text.title())
-					if name.find("DISS_surname").text:
-						last_name = name.find("DISS_surname").text
-						fullname.append(name.find("DISS_surname").text.title())
-					if name.find("DISS_suffix").text:
-						fullname.append(name.find("DISS_suffix").text.title())
-			name = " ".join(fullname)
-
-		if embargo == "4":
-			match = False
-			for author in compare_list:
-				if last_name.lower().strip() == author[0].lower().strip() and first_name.lower().strip() in author[1].lower().strip():
-					match = True
-			if match == False:
-				print (f"Can't find {last_name}, {first_name}")
-			
-
-
-
-
-"""
-for check in tqdm(compare_list):
-	match = False
-	for row in sheet:
-		lname = row[5].value
-		fname = row[6].value
-		if check[0].lower().strip() == lname.lower().strip() and check[1].lower().strip() in fname.lower().strip():
-			match = True
-	if match == False:
-		print (f"Can't find: {check[0]}, {check[2]}")
-
-catalogData = openpyxl.load_workbook(filename = catalogEmbargosFile)
-catalog = catalogData.active
-"""
+with open("\\\\Lincoln\\Library\\ETDs\\ETDWorkspace\\catalog_missing_embargos.csv", "w", newline="", encoding="utf-8") as f:
+	writer = csv.writer(f)
+	writer.writerows(missing_embargos)

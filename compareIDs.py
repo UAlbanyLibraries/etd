@@ -4,9 +4,9 @@ import csv
 import openpyxl
 from tqdm import tqdm
 from lxml import etree
+from packages import ETD
 from fuzzywuzzy import fuzz
 
-print ("hello world")
 
 # Lets get a big list of titles and mms_ids
 # \ is an escape so you have to double them up for windows paths
@@ -42,21 +42,17 @@ for sheet in wb.worksheets:
 
 
 
-# Now lets loop though all the ETD packages we got from ProQuest
-etd_root = "\\\\Lincoln\\Library\\ETDs\\Unzipped"
+# Now lets loop though all the ETD packages
+etd_root = "\\\\Lincoln\\Masters\\ETD-storage"
 
 # Start of list of 
-output = [["mms_id", "xml_id"]]
-
-# Start a list of contact emails to write to a .csv at the end
-contacts = [["Name", "Current Email", "Future Email"]]
+output = [["mms_id", "etd_id", "xml_id", "year", "active embargo", "author", "title"]]
 
 print ("reading ETD packages...")
-xml_list = []
-for thing in os.listdir(etd_root):
-	# exclude supplemental materials directories and pdfs themselves
-	if thing.lower().endswith(".xml"):
-		xml_list.append(thing)
+etd_list = []
+for year in os.listdir(etd_root):
+	for etd in os.listdir(os.path.join(etd_root, year)):
+		etd_list.append([os.path.join(etd_root, year, etd), year])
 
 count = 0
 found = 0
@@ -64,70 +60,22 @@ missing = 0
 missing_list = []
 
 # Loop though the XML
-for etd in tqdm(xml_list):
+for etd_dir in tqdm(etd_list):
 	# get the full path
-	xml_file = os.path.join(etd_root, etd)
-	xml_id = etd.split("_DATA")[0]
+	#xml_file = os.path.join(etd_root, etd)
+	#xml_id = etd.split("_DATA")[0]
 
 	count += 1
 
-	#if count == 999:
+	#if count == 959:
 	if count > 0:
-		# Read the XML file
-		tree = etree.parse(xml_file)
-		# Get the root <DISS_submission> element
-		root = tree.getroot()
 
-		author_count = 0
-		for author in root.find("DISS_authorship"):
-			author_count += 1
-			# Thay all have one author... for now
-			if author_count != 1:
-				raise ValueError(f"{etd} has multiple authors")
+		etd = ETD()
+		etd.load(etd_dir[0])
 
-			name_count = 0
-			fullname = []
-			for name in author:
-				if name.tag == "DISS_name":
-					name_count += 1
-					if name_count != 1:
-						raise ValueError(f"{etd} has multiple names")
-
-					# safely build the name
-					if name.find("DISS_fname").text:
-						fullname.append(name.find("DISS_fname").text.title())
-					if name.find("DISS_middle").text:
-						fullname.append(name.find("DISS_middle").text.title())
-					if name.find("DISS_surname").text:
-						fullname.append(name.find("DISS_surname").text.title())
-					if name.find("DISS_suffix").text:
-						fullname.append(name.find("DISS_suffix").text.title())
-					#print (" ".join(fullname))
-
-			current_email = author.xpath("//DISS_contact[@type='current']/DISS_email")
-			future_email = author.xpath("//DISS_contact[@type='future']/DISS_email")
-			if len(current_email) > 1 or len(future_email) > 1:
-				raise ValueError(f"{etd} has weird contact info")
-			else:
-				if len(current_email) == 0:
-					current_email_text = ""
-				else:
-					current_email_text = current_email[0].text
-				if len(future_email) == 0:
-					future_email_text = ""
-				else:
-					future_email_text = future_email[0].text
-				# Make a list with the fullname (as a string), current and future emails
-				contact_row = [" ".join(fullname), current_email_text, future_email_text]
-				# add it to the CSV as a row
-				contacts.append(contact_row)
-
-		# Get the title
-		title = root.xpath("//DISS_description/DISS_title")
-		if len(title) != 1:
-			raise ValueError(f"{etd} has multiple titles")
-		title_text = title[0].text
-
+		title_text = etd.bag.info["Submitted-Title"]
+		fullname = etd.bag.info["Author"]
+		
 		match_count = 0
 		# First look for easy matches
 		for record in records:
@@ -168,29 +116,46 @@ for etd in tqdm(xml_list):
 						match_count += 1
 						catalog_id = record[2]
 
-
+		if etd.bag.info["Embargo-Active"] == "True":
+			embargo_string = etd.bag.info["Embargo-Date"]
+		else:
+			embargo_string = ""
 
 		# make sure there is only one match
 		if match_count == 1:
 			found += 1
-			output.append([catalog_id, xml_id])
+			output.append([
+				catalog_id,
+				etd.etd_id,
+				etd.bag.info["XML-ID"],
+				etd.bag.info["Completion-Date"],
+				embargo_string,
+				etd.bag.info["Author"],
+				etd.bag.info["Submitted-Title"]
+				])
 		else:
 			if match_count > 1:
-				print (f"multiple {str(match_count)} matches --> {xml_id}")
+				print (f"multiple {str(match_count)} matches --> {etd.etd_id}")
+				out_str = "multiple"
+			else:
+				out_str = "missing"
 			missing += 1
 			missing_list.append(title_text)
+			output.append([
+				out_str,
+				etd.etd_id,
+				etd.bag.info["XML-ID"],
+				etd.bag.info["Completion-Date"],
+				embargo_string,
+				etd.bag.info["Author"],
+				etd.bag.info["Submitted-Title"]
+				])
 
 print (missing_list)
 print (f"Found {str(found)} of {str(count)} ETDs. {str(missing)} missing.")		
 
 # Write contacts to CSV
 output_path = os.path.join(catalog_root, "output.csv")
-with open(output_path, "w", newline="") as f:
+with open(output_path, "w", newline="", encoding="utf-8") as f:
 	writer = csv.writer(f)
 	writer.writerows(output)
-
-# Write contacts to CSV
-contacts_path = os.path.join(catalog_root, "contacts.csv")
-with open(contacts_path, "w", newline="") as f:
-	writer = csv.writer(f)
-	writer.writerows(contacts)

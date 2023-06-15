@@ -26,7 +26,7 @@ class ETD:
         
         
     def load(self, path):
-        print (path)
+        #print (path)
         if not os.path.isdir(path):
             raise Exception(f"ERROR: {path} does not exist.")
         
