@@ -132,3 +132,7 @@ dmypy.json
 
 # Environment-Specific Configuration File
 envconfig.py
+
+# Test Data
+output.csv
+output.xls
