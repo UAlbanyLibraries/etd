@@ -1,6 +1,7 @@
 import csv
 import requests
 import os
+import shutil
 import sys
 import getopt
 import xlwt
@@ -200,7 +201,7 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year):
                         disciplines = disciplines.join(category.find('DISS_cat_desc')).text
                     data[header['output']] = disciplines
                 case 'url':
-                    data[header['output']] = deposit_pdf(etd_record.pdf_file)
+                    data[header['output']] = deposit_pdf(etd_record)
                 case _: #unassigned elsewhere, leave blank for now
                     data[header['output']] = ''
     
@@ -235,7 +236,7 @@ def get_etd(etd_id,xml_id,year):
 def deposit_pdf(etd_record):
     shutil.copyfile(etd_record.pdf_file,os.path.join(envconfig.working_directory, 'SA_uploads', etd_record.etd_id + '.pdf'))
     
-    return 'https://apps.library.albany.edu/sa_uploads/' + etd_id + '.pdf'
+    return 'https://apps.library.albany.edu/sa_uploads/' + etd_record.etd_id + '.pdf'
 
 #trigger for main method
 if __name__ == "__main__":
