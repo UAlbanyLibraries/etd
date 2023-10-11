@@ -55,7 +55,7 @@ def main(argv):
         
         headers = [
             {'input':'title','output':'title'},
-            {'input':'url','output':'fulltext_url'}, #?????
+            {'input':'url','output':'fulltext_url'},
             {'input':'keyword','output':'keywords'},
             {'input':'abstract','output':'abstract'},
             {'input':'First-Name','output':'author1_fname'},
@@ -65,31 +65,31 @@ def main(argv):
             {'input':'ProQuest-Email','output':'author1_email'},
             {'input':'inst_name','output':'author1_institution'},
             {'input':'advisor','output':'advisor1'},
-            {'input':'advisor2','output':'advisor2'}, #?????
-            {'input':'advisor3','output':'advisor3'}, #?????
+            {'input':'advisor2','output':'advisor2'},
+            {'input':'advisor3','output':'advisor3'},
             {'input':'mms_id','output':'alma_mms_id'},
             {'input':'categorization','output':'disciplines'},
             {'input':'050','output':'call_number'},
-            {'input':'',    'output':'carrier_type'},
-            {'input':'',    'output':'comments'},
-            {'input':'',    'output':'committee_members'},
-            {'input':'',    'output':'content_type'},
-            {'input':'',    'output':'degree_name'},
-            {'input':'',    'output':'department'},
-            {'input':'',    'output':'distribution_license'},
+            {'input':'',    'output':'carrier_type'},                       # NO INCOMING VALUE
+            {'input':'',    'output':'comments'},                           # NO INCOMING VALUE
+            {'input':'',    'output':'committee_members'},                  # NO INCOMING VALUE
+            {'input':'',    'output':'content_type'},                       # NO INCOMING VALUE
+            {'input':'',    'output':'degree_name'},                        # NO INCOMING VALUE
+            {'input':'',    'output':'department'},                         # NO INCOMING VALUE
+            {'input':'',    'output':'distribution_license'},               # NO INCOMING VALUE
             {'input':'060','output':'document_type'},
-            {'input':'',    'output':'doi'},
-            {'input':'',    'output':'embargo_date'},
-            {'input':'',    'output':'genre_form'},
-            {'input':'',    'output':'language'},
-            {'input':'',    'output':'media_type'},
-            {'input':'',    'output':'oa_licenses'},
-            {'input':'',    'output':'orcid'},
+            {'input':'',    'output':'doi'},                                # NO INCOMING VALUE
+            {'input':'',    'output':'embargo_date'},                       # NO INCOMING VALUE
+            {'input':'',    'output':'genre_form'},                         # NO INCOMING VALUE
+            {'input':'',    'output':'language'},                           # NO INCOMING VALUE
+            {'input':'',    'output':'media_type'},                         # NO INCOMING VALUE
+            {'input':'',    'output':'oa_licenses'},                        # NO INCOMING VALUE
+            {'input':'',    'output':'orcid'},                              # NO INCOMING VALUE
             {'input':'300','output':'phys_desc'},
             {'input':'date_of_publication','output':'publication_date'},
-            {'input':'',    'output':'season'},
-            {'input':'',    'output':'rights_statements'},
-            {'input':'',    'output':'subjects'}
+            {'input':'',    'output':'season'},                             # NO INCOMING VALUE
+            {'input':'',    'output':'rights_statements'},                  # NO INCOMING VALUE
+            {'input':'',    'output':'subjects'}                            # NO INCOMING VALUE
             ]
         
         #worksheet header row
