@@ -35,12 +35,12 @@ for year in os.listdir(root):
 						print (f"found match for {embargo[0]} {embargo[1]} --> {year}, {etd_folder}")
 
 						#print (embargo[2])
-						etd.bag.info["Embargo"] = "True"
-						etd.bag.info["Embargo-Active"] = "True"
-						etd.bag.info["Embargo-Date"] = embargo[2]
-						etd.bag.info["Embargo-Type"] = "Specified Date"
-						etd.bag.info["Embargo-Note"] = "Manual embargo approved by Graduate School"
-						etd.bag.save()
+						#etd.bag.info["Embargo"] = "True"
+						#etd.bag.info["Embargo-Active"] = "True"
+						#etd.bag.info["Embargo-Date"] = embargo[2]
+						#etd.bag.info["Embargo-Type"] = "Specified Date"
+						#etd.bag.info["Embargo-Note"] = "Manual embargo approved by Graduate School"
+						#etd.bag.save()
 						modified = True
 
 			if modified:
