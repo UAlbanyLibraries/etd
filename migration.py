@@ -7,6 +7,8 @@ import getopt
 import xlwt
 from packages import ETD
 from lxml import etree
+from langcodes import *
+
 import envconfig
 
 ################################################################################
@@ -19,6 +21,20 @@ import envconfig
 ##  4.  Deposit copies of each ETD's PDF file into a designated directory     ##
 ##  5.  Generate an XLS merging the above data for BePress consumption        ##
 ################################################################################
+
+degree_map = {
+    'Ph.D.':'Doctor of Philosophy',
+    'M.A.':'Master of Arts',
+    'M.S.':'Master of Science',
+    '':''
+}
+
+document_map = {
+    'Ph.D.':'thesis',
+    'M.A.':'dissertation',
+    'M.S.':'dissertation',
+    '':''
+}
 
 def main(argv):
     print('Initiating...');
@@ -57,7 +73,7 @@ def main(argv):
             {'input':'title','output':'title'},
             {'input':'url','output':'fulltext_url'},
             {'input':'keyword','output':'keywords'},
-            {'input':'abstract','output':'abstract'},
+            {'input':'para','output':'abstract'},
             {'input':'First-Name','output':'author1_fname'},
             {'input':'Middle-Name','output':'author1_mname'},
             {'input':'Last-Name','output':'author1_lname'},
@@ -70,26 +86,26 @@ def main(argv):
             {'input':'mms_id','output':'alma_mms_id'},
             {'input':'categorization','output':'disciplines'},
             {'input':'050','output':'call_number'},
-            {'input':'',    'output':'carrier_type'},                       # NO INCOMING VALUE
-            {'input':'',    'output':'comments'},                           # NO INCOMING VALUE
-            {'input':'',    'output':'committee_members'},                  # NO INCOMING VALUE
-            {'input':'',    'output':'content_type'},                       # NO INCOMING VALUE
-            {'input':'',    'output':'degree_name'},                        # NO INCOMING VALUE
-            {'input':'',    'output':'department'},                         # NO INCOMING VALUE
+            {'input':'338','output':'carrier_type'},
+            {'input':'','output':'comments'},
+            {'input':'committee_members','output':'committee_members'},
+            {'input':'336','output':'content_type'},
+            {'input':'degree','output':'degree_name'},
+            {'input':'inst_contact','output':'department'},
             {'input':'',    'output':'distribution_license'},               # NO INCOMING VALUE
-            {'input':'060','output':'document_type'},
+            {'input':'document_type','output':'document_type'},
             {'input':'',    'output':'doi'},                                # NO INCOMING VALUE
-            {'input':'',    'output':'embargo_date'},                       # NO INCOMING VALUE
-            {'input':'',    'output':'genre_form'},                         # NO INCOMING VALUE
-            {'input':'',    'output':'language'},                           # NO INCOMING VALUE
-            {'input':'',    'output':'media_type'},                         # NO INCOMING VALUE
+            {'input':'active embargo','output':'embargo_date'},
+            {'input':'655','output':'genre_form'},
+            {'input':'language','output':'language'},
+            {'input':'337','output':'media_type'},
             {'input':'',    'output':'oa_licenses'},                        # NO INCOMING VALUE
             {'input':'',    'output':'orcid'},                              # NO INCOMING VALUE
             {'input':'300','output':'phys_desc'},
             {'input':'date_of_publication','output':'publication_date'},
             {'input':'',    'output':'season'},                             # NO INCOMING VALUE
             {'input':'',    'output':'rights_statements'},                  # NO INCOMING VALUE
-            {'input':'',    'output':'subjects'}                            # NO INCOMING VALUE
+            {'input':'650','output':'subjects'}
             ]
         
         #worksheet header row
@@ -102,10 +118,11 @@ def main(argv):
             input_headers = next(input_reader)
             
             for row_count,row_array in enumerate(input_reader):
-                mms_id = row_array[0]
-                etd_id = row_array[1]
-                xml_id = row_array[2]
-                year   = row_array[3]
+                mms_id          = row_array[0]
+                etd_id          = row_array[1]
+                xml_id          = row_array[2]
+                year            = row_array[3]
+                active_embargo  = row_array[4]
                 
                 print(' '.join([mms_id, etd_id, year]))
                 
@@ -113,7 +130,7 @@ def main(argv):
                 bib_record = get_bib(mms_id)
                 etd_record = get_etd(etd_id, xml_id, year)
                 
-                data = flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year)
+                data = flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo)
                 
                 # write entry into output_ws
                 for column,header in enumerate(headers):
@@ -123,7 +140,7 @@ def main(argv):
         output_wb.save(output_file)
 
 #combines data from bib record and etd record to produce a flat object that contains the necessary field values
-def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year):
+def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo):
     data = {}
     
     #this fills the row with an error report if the associated input data is corrupt
@@ -142,69 +159,112 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year):
             else:
                 data[header['output']] = ''
     else:
+        #bib_xml = etree.fromstring(bib_record['anies'][0]).getroot()
         bib_xml = etree.XML(bib_record['anies'][0].encode(encoding="UTF-16"))
-        etd_xml = etree.parse(etd_record.xml_file)
+        etd_xml = etd_record.pq_xml()
+        #etd_xml = etree.parse(etd_record.xml_file)
     
         for header in headers:
             header_input = header['input']
             header_output = header['output']
             
             match header_input:
-                case 'title' | 'mms_id' | 'date_of_publication': #taken from bib data json
-                    data[header['output']] = bib_record[header['input']]
-                case '050' | '060' | '300': #taken from bib data xml
-                    datafields = bib_xml.xpath("//datafield[@tag=" + header['input'] +"]")
-                    data[header['output']] = ''
-                    
-                    for i,datafield in enumerate(datafields):
-                        if i > 0:
-                            data[header['output']] += '\n'
-                        subfields = datafield.findall('subfield')
-                        
-                        for j,subfield in enumerate(subfields):
-                            if j > 0:
-                                data[header['output']] += ' '
-                            data[header['output']] += subfield.text
-                case 'abstract' | 'keyword' | 'inst_name': #taken from etd's ..._DATA.xml
-                    found_els = etd_xml.find('DISS_' + header['input'])
-                    if found_els != None:
-                        data[header['output']] = ''.join(found_els.itertext())
-                    else:
-                        data[header['output']] = ''
-                case 'First-Name' | 'Middle-Name' | 'Last-Name' | 'ProQuest-Email' : #taken from etd metadata in bag-info.txt
+                #taken from input CSV
+                case 'active embargo':
+                    data[header['output']] = active_embargo
+                
+                #taken from etd metadata in bag-info.txt
+                case 'First-Name' | 'Middle-Name' | 'Last-Name' | 'ProQuest-Email' : 
                     if header['input'] in etd_record.bag.info:
                         data[header['output']] = etd_record.bag.info[header['input']]
                     else:
                         data[header['output']] = ''
-                case 'advisor': #taken from etd ..._DATA.xml, specific to advisor group
-                    advisors = etd_xml.findall('DISS_advisor')
+                
+                #taken from bib data json
+                case 'title' | 'mms_id' | 'date_of_publication':
+                    data[header['output']] = bib_record[header['input']].removesuffix(' /').removesuffix('.')
+                
+                #taken from bib data xml; get all subfields
+                case '050' | '300' :
+                    datafields = bib_xml.xpath("//datafield[@tag=" + header['input'] +"]")
+                    data[header['output']] = ''
+                    
+                    subfield_values = []
+                    
+                    for datafield in datafields:
+                        for subfield in datafield:
+                            subfield_values.append(subfield.text)
+                    
+                    data[header['output']] = ' '.join(subfield_values)
+                
+                #taken from bib data xml; get all instances, subfield a
+                case '336' | '337' | '338' | '650' | '655':
+                    datafields = bib_xml.xpath("//datafield[@tag=" + header['input'] +"]")
+                    data[header['output']] = ''
+                    
+                    subfield_values = []
+                    
+                    for datafield in datafields:
+                        subfield_values.append(datafield[0].text)
+                    
+                    data[header['output']] = ' '.join(subfield_values)
+                
+                #taken from etd's ..._DATA.xml
+                case 'para' | 'keyword' | 'inst_contact': 
+                    found_els = etd_xml.find('.//DISS_' + header['input'])
+                    if found_els != None:
+                        data[header['output']] = ''.join(found_els.itertext())
+                    else:
+                        data[header['output']] = ''
+                case 'degree':
+                    degree_abbrev = etd_xml.find('.//DISS_degree').text or ''
+                    data[header['output']] = degree_map[degree_abbrev]
+                case 'document_type':
+                    degree_abbrev = etd_xml.find('.//DISS_degree').text or ''
+                    data[header['output']] = document_map[degree_abbrev]
+                case 'language':
+                    lang_code = etd_xml.find('.//DISS_language').text or ''
+                    data[header['output']] = Language.make(language=lang_code).display_name()
+                case 'advisor':
+                    advisors = etd_xml.findall('.//DISS_advisor')
                     
                     data['advisor1'] = ''
                     data['advisor2'] = ''
                     data['advisor3'] = ''
                     
                     for i,advisor in enumerate(advisors):
-                        advisor_name = [];
-                        if advisor.find('DISS_fname').text:
-                            advisor_name[0] = advisor.find('DISS_fname').text.title()
-                        if advisor.find('DISS_middle').text:
-                            advisor_name[1] = advisor.find('DISS_middle').text.title()
-                        if advisor.find('DISS_surname').text:
-                            advisor_name[1] = advisor.find('DISS_surname').text.title()
+                        advisor_name = [''] * 3;
+                        if advisor.find('.//DISS_fname').text:
+                            advisor_name[0] = advisor.find('.//DISS_fname').text or ''
+                        if advisor.find('.//DISS_middle').text:
+                            advisor_name[1] = advisor.find('.//DISS_middle').text or ''
+                        if advisor.find('.//DISS_surname').text:
+                            advisor_name[2] = advisor.find('.//DISS_surname').text or ''
                         
-                        data['advisor' + (i+1)] = ' '.join(advisor_name)
-                case 'categorization': #taken from etd ..._DATA.xml, specific to categories group
-                    categories = etd_xml.findall('DISS_category')
-                    disciplines = ''
-                    
-                    for category in categories:
-                        disciplines = disciplines.join(category.find('DISS_cat_desc')).text
-                    data[header['output']] = disciplines
+                        data['advisor' + str(i+1)] = ' '.join(advisor_name)
+                case 'categorization': 
+                    data[header['output']] = etd_xml.find('.//DISS_cat_desc').text or ''
                 case 'url':
                     data[header['output']] = deposit_pdf(etd_record)
-                case _: #unassigned elsewhere, leave blank for now
+                case 'committee_members': 
+                    cmte_members = etd_xml.findall('.//DISS_cmte_member')
+                    committee_members = [''] * len(cmte_members)
+                    
+                    for i,cmte_member in enumerate(cmte_members):
+                        member_name = [''] * 3
+                        member_name[0] = cmte_member.find('.//DISS_fname').text or ''
+                        member_name[1] = cmte_member.find('.//DISS_middle').text or ''
+                        member_name[2] = cmte_member.find('.//DISS_surname').text or ''
+                        committee_members[i] = ' '.join(member_name)
+                    data[header['output']] = ', '.join(committee_members)
+                
+                # hard-coded
+                case 'inst_name':
+                    data[header['output']] = "University at Albany, State University of New York"
+                
+                #unassigned elsewhere, leave output field blank for now
+                case _:
                     data[header['output']] = ''
-    
     return data
 
 #pulls bib data using Alma API
