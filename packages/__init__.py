@@ -10,6 +10,36 @@ from lxml import etree
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+if os.name == "nt":
+    storage_path = "\\\\Lincoln\\Masters\\ETD-storage"
+else:
+    storage_path = "/media/Masters/ETD-storage"
+
+
+def etd_loop(year_limit='*'):
+    # returns an interator of etd packages
+    # year_limit is a string of a year to limit the loop to, such as: etd_loop("2015")
+
+    for year in os.listdir(storage_path):
+        if year_limit == "*" or year == str(year_limit):
+            for etd_name in os.listdir(os.path.join(storage_path, year)):
+                etd_path = os.path.join(storage_path, year, etd_name)
+                etd = ETD()
+                etd.load(etd_path)
+
+                yield etd
+
+def etd_total(year_limit='*'):
+    # returns the total number of ETDs
+    # year_limit is a string of a year to limit the loop to, such as: etd_total("2015")
+
+    etd_total = 0
+    for year in os.listdir(storage_path):
+        if year_limit == "*" or year == str(year_limit):
+            for etd_name in os.listdir(os.path.join(storage_path, year)):
+                etd_total += 1
+    return etd_total
+
 class ETD:
 
     def __init__(self):
@@ -48,6 +78,15 @@ class ETD:
                 self.supplemental = True
                 self.supplemental_files = self.bag.info["Supplemental-Path"]
 
+    def pq_xml(self):
+        # Returns an lxml root element of the ProQuest XML metadata file
+        if not os.path.isfile(self.xml_file):
+            raise Exception(f"ERROR: Cannot find XML file {self.xml_file}")
+        tree = etree.parse(self.xml_file)
+        # Get the root <DISS_submission> element
+        root = tree.getroot()
+
+        return root
 
     def check_embargo(self, xml_id, last_name, first_name):
         embargo_file = os.path.join(self.working_path, "embargos.xlsx")
