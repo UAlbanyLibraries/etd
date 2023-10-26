@@ -8,6 +8,7 @@ import xlwt
 from packages import ETD
 from lxml import etree
 from langcodes import *
+from openpyxl import load_workbook
 
 import envconfig
 
@@ -24,6 +25,7 @@ import envconfig
 
 degree_map = {
     'Ph.D.':'Doctor of Philosophy',
+    'Psy.D.':'Doctor of Psychology',
     'M.A.':'Master of Arts',
     'M.S.':'Master of Science',
     '':''
@@ -31,6 +33,7 @@ degree_map = {
 
 document_map = {
     'Ph.D.':'thesis',
+    'Psy.D.':'thesis',
     'M.A.':'dissertation',
     'M.S.':'dissertation',
     '':''
@@ -42,20 +45,25 @@ def main(argv):
     #setup
     input_file = ''
     output_file = ''
+    optout_file = ''
     
     # script consumes user-provided values
     # -i flags the input file name
     # -o flags the output file name
-    opts, args = getopt.getopt(argv,'hi:o:',['ifile=','ofile='])
+    # -u flags the optout file name (optional)
+    
+    
+    opts, args = getopt.getopt(argv,'hi:o:u:')
     for opt, arg in opts:
         if opt == '-h':
-            print ('migration.py -i <inputfile> -o <outputfile>')
+            print ('migration.py -i <input-file> -o <output-file> [-u <optout-file>]')
             sys.exit()
-        elif opt in ('-i', '--ifile'):
+        elif opt in ['-i']:
             input_file = arg
-        elif opt in ('-o', '--ofile'):
+        elif opt in ['-o']:
             output_file = arg
-    
+        elif opt in ['-u']:
+            optout_file = arg
     #continue only if input and output arguments are not empty
     if not input_file:
         print('Input File not set')
@@ -67,7 +75,6 @@ def main(argv):
         #create output workbook
         output_wb = xlwt.Workbook()
         output_ws = output_wb.add_sheet(' ')
-        
         
         headers = [
             {'input':'title','output':'title'},
@@ -112,12 +119,30 @@ def main(argv):
         for column,header in enumerate(headers):
             output_ws.write(0,column,header['output']);
         
+        optout_entries = set()
+        
+        # read optout file
+        if optout_file != '':
+            optout_sheet = load_workbook(filename = optout_file, read_only = True)['in']
+            optout_entries = set()
+        
+            print('Reading Optout File...')
+            
+            for i, row in enumerate(optout_sheet):
+                if i > 0:
+                    optout_entries.add(row[0].value)
+            
+        print('Optout set: ', optout_entries)
+        
         # read input file
+        print('Parsing Input File...)
         with open(input_file, newline='', encoding="utf8") as input_csv:
             input_reader = csv.reader(input_csv)
             input_headers = next(input_reader)
             
-            for row_count,row_array in enumerate(input_reader):
+            row_count = 0
+            
+            for row_array in input_reader:
                 mms_id          = row_array[0]
                 etd_id          = row_array[1]
                 xml_id          = row_array[2]
@@ -126,16 +151,20 @@ def main(argv):
                 
                 print(' '.join([mms_id, etd_id, year]))
                 
-                # retrieve records and flatten
-                bib_record = get_bib(mms_id)
-                etd_record = get_etd(etd_id, xml_id, year)
-                
-                data = flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo)
-                
-                # write entry into output_ws
-                for column,header in enumerate(headers):
-                    #print('Column ' + str(column) + ':' + header['output'])
-                    output_ws.write(row_count+1,column,data[header['output']])
+                if mms_id not in optout_entries:
+                    # retrieve records and flatten
+                    bib_record = get_bib(mms_id)
+                    etd_record = get_etd(etd_id, xml_id, year)
+                    
+                    data = flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo)
+                    
+                    # write entry into output_ws
+                    for column,header in enumerate(headers):
+                        #print('Column ' + str(column) + ':' + header['output'])
+                        output_ws.write(row_count+1,column,data[header['output']])
+                    row_count += 1
+                else:
+                    print('    OPTOUT')
         #save output file
         output_wb.save(output_file)
 
@@ -221,7 +250,10 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
                     data[header['output']] = degree_map[degree_abbrev]
                 case 'document_type':
                     degree_abbrev = etd_xml.find('.//DISS_degree').text or ''
-                    data[header['output']] = document_map[degree_abbrev]
+                    if degree_abbrev in document_map:
+                        data[header['output']] = document_map[degree_abbrev]
+                    else:
+                        data[header['output']] = ''
                 case 'language':
                     lang_code = etd_xml.find('.//DISS_language').text or ''
                     data[header['output']] = Language.make(language=lang_code).display_name()
