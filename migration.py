@@ -96,20 +96,20 @@ def main(argv):
             {'input':'advisor3','output':'advisor3'},
             {'input':'mms_id','output':'alma_mms_id'},
             {'input':'categorization','output':'disciplines'},
-            {'input':'050','output':'call_number'},
-            {'input':'338','output':'carrier_type'},
+            #{'input':'050','output':'call_number'},
+            #{'input':'338','output':'carrier_type'},
             {'input':'','output':'comments'},
             {'input':'committee_members','output':'committee_members'},
-            {'input':'336','output':'content_type'},
+            #{'input':'336','output':'content_type'},
             {'input':'degree','output':'degree_name'},
             {'input':'inst_contact','output':'department'},
             {'input':'',    'output':'distribution_license'},               # NO INCOMING VALUE
             {'input':'document_type','output':'document_type'},
             {'input':'',    'output':'doi'},                                # NO INCOMING VALUE
             {'input':'active embargo','output':'embargo_date'},
-            {'input':'655','output':'genre_form'},
+            #{'input':'655','output':'genre_form'},
             {'input':'language','output':'language'},
-            {'input':'337','output':'media_type'},
+            #{'input':'337','output':'media_type'},
             {'input':'',    'output':'oa_licenses'},                        # NO INCOMING VALUE
             {'input':'',    'output':'orcid'},                              # NO INCOMING VALUE
             {'input':'300','output':'phys_desc'},
