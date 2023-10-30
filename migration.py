@@ -24,6 +24,8 @@ import envconfig
 ################################################################################
 
 degree_map = {
+    'D.A.':'Doctor of Arts',
+    'Dr.P.H.':'Doctor of Public Health',
     'Ph.D.':'Doctor of Philosophy',
     'Psy.D.':'Doctor of Psychology',
     'M.A.':'Master of Arts',
@@ -32,6 +34,8 @@ degree_map = {
 }
 
 document_map = {
+    'D.A.':'thesis',
+    'Dr.P.H.':'thesis',
     'Ph.D.':'thesis',
     'Psy.D.':'thesis',
     'M.A.':'dissertation',

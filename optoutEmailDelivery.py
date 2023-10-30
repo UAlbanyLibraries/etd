@@ -46,7 +46,7 @@ def main(argv):
     opts, args = getopt.getopt(argv,'hi:o:',['ifile=','ofile='])
     for opt, arg in opts:
         if opt == '-h':
-            print ('migration.py -i <inputfile>')
+            print ('optoutEmailDelivery.py -i <inputfile>')
             sys.exit()
         elif opt in ('-i', '--ifile'):
             input_file = arg
