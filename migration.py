@@ -9,6 +9,8 @@ from packages import ETD
 from lxml import etree
 from langcodes import *
 from openpyxl import load_workbook
+from datetime import datetime
+import re
 
 import envconfig
 
@@ -24,22 +26,22 @@ import envconfig
 ################################################################################
 
 degree_map = {
-    'D.A.':'Doctor of Arts',
-    'Dr.P.H.':'Doctor of Public Health',
-    'Ph.D.':'Doctor of Philosophy',
-    'Psy.D.':'Doctor of Psychology',
-    'M.A.':'Master of Arts',
-    'M.S.':'Master of Science',
+    'D.A.':'Doctor of Arts (DA)',
+    'Dr.P.H.':'Doctor of Public Health (DrPH)',
+    'Ph.D.':'Doctor of Philosophy (PhD)',
+    'Psy.D.':'Doctor of Psychology (PsyD)',
+    'M.A.':'Master of Arts (MA)',
+    'M.S.':'Master of Science (MS)',
     '':''
 }
 
 document_map = {
-    'D.A.':'thesis',
-    'Dr.P.H.':'thesis',
-    'Ph.D.':'thesis',
-    'Psy.D.':'thesis',
-    'M.A.':'dissertation',
-    'M.S.':'dissertation',
+    'D.A.':'dissertation',
+    'Dr.P.H.':'dissertation',
+    'Ph.D.':'dissertation',
+    'Psy.D.':'dissertation',
+    'M.A.':'master\'s thesis',
+    'M.S.':'master\'s thesis',
     '':''
 }
 
@@ -50,17 +52,17 @@ def main(argv):
     input_file = ''
     output_file = ''
     optout_file = ''
+    disciplines_file = ''
     
     # script consumes user-provided values
     # -i flags the input file name
     # -o flags the output file name
     # -u flags the optout file name (optional)
     
-    
-    opts, args = getopt.getopt(argv,'hi:o:u:')
+    opts, args = getopt.getopt(argv,'hi:o:u:d:')
     for opt, arg in opts:
         if opt == '-h':
-            print ('migration.py -i <input-file> -o <output-file> [-u <optout-file>]')
+            print ('migration.py -i <input-file.csv> -o <output-file.xls> [-u <optout-file.xlsx>] [-d <discipline-mapping-file.xlsx]')
             sys.exit()
         elif opt in ['-i']:
             input_file = arg
@@ -68,6 +70,8 @@ def main(argv):
             output_file = arg
         elif opt in ['-u']:
             optout_file = arg
+        elif opt in ['-d']:
+            disciplines_file = arg
     #continue only if input and output arguments are not empty
     if not input_file:
         print('Input File not set')
@@ -83,7 +87,7 @@ def main(argv):
         headers = [
             {'input':'title','output':'title'},
             {'input':'url','output':'fulltext_url'},
-            {'input':'keyword','output':'keywords'},
+            {'input':'keyword,650','output':'keywords'},
             {'input':'para','output':'abstract'},
             {'input':'First-Name','output':'author1_fname'},
             {'input':'Middle-Name','output':'author1_mname'},
@@ -98,7 +102,7 @@ def main(argv):
             {'input':'categorization','output':'disciplines'},
             #{'input':'050','output':'call_number'},
             #{'input':'338','output':'carrier_type'},
-            {'input':'','output':'comments'},
+            {'input':'comments','output':'comments'},
             {'input':'committee_members','output':'committee_members'},
             #{'input':'336','output':'content_type'},
             {'input':'degree','output':'degree_name'},
@@ -116,19 +120,18 @@ def main(argv):
             {'input':'date_of_publication','output':'publication_date'},
             {'input':'',    'output':'season'},                             # NO INCOMING VALUE
             {'input':'',    'output':'rights_statements'},                  # NO INCOMING VALUE
-            {'input':'650','output':'subjects'}
+            #{'input':'650','output':'subjects'}
             ]
         
         #worksheet header row
         for column,header in enumerate(headers):
             output_ws.write(0,column,header['output']);
         
+        # read optout file
         optout_entries = set()
         
-        # read optout file
         if optout_file != '':
             optout_sheet = load_workbook(filename = optout_file, read_only = True)['in']
-            optout_entries = set()
         
             print('Reading Optout File...')
             
@@ -138,9 +141,28 @@ def main(argv):
             
         print('Optout set: ', optout_entries)
         
+        # read discipline mapping file
+        disciplines = dict()
+        
+        if disciplines_file != '':
+            disciplines_sheet = load_workbook(filename = disciplines_file, read_only = True)['proquest disciplines']
+            
+            for i, row in enumerate(disciplines_sheet):
+                if i > 0:
+                    key = row[0].value.split(':')[0].lstrip()
+                    value = row[1].value or ''
+                    
+                    value_split = value.split(': ')
+                    
+                    if re.search(value, 'map individually', re.IGNORECASE):
+                        disciplines[key] = '**' + key + '**'
+                        ### PUT ENTRIES WITH THIS INTO A SEPARATE OUTPUT FILE, MAYBE?
+                    else:
+                        disciplines[key] = value_split[len(value_split) - 1]
+        
         # read input file
-        print('Parsing Input File...)
-        with open(input_file, newline='', encoding="utf8") as input_csv:
+        print('Parsing Input File...')
+        with open(input_file, newline='', encoding="utf-8") as input_csv:  ### sometimes 'cp1252'
             input_reader = csv.reader(input_csv)
             input_headers = next(input_reader)
             
@@ -153,27 +175,24 @@ def main(argv):
                 year            = row_array[3]
                 active_embargo  = row_array[4]
                 
-                print(' '.join([mms_id, etd_id, year]))
+                print(' '.join([mms_id, etd_id, year, active_embargo]))
                 
-                if mms_id not in optout_entries:
-                    # retrieve records and flatten
-                    bib_record = get_bib(mms_id)
-                    etd_record = get_etd(etd_id, xml_id, year)
-                    
-                    data = flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo)
-                    
-                    # write entry into output_ws
-                    for column,header in enumerate(headers):
-                        #print('Column ' + str(column) + ':' + header['output'])
-                        output_ws.write(row_count+1,column,data[header['output']])
-                    row_count += 1
-                else:
-                    print('    OPTOUT')
+                # retrieve records and flatten
+                bib_record = get_bib(mms_id)
+                etd_record = get_etd(etd_id, xml_id, year)
+                
+                data = flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, mms_id in optout_entries)
+                
+                # write entry into output_ws
+                for column,header in enumerate(headers):
+                    #print('Column ' + str(column) + ':' + header['output'])
+                    output_ws.write(row_count+1,column,data[header['output']])
+                row_count += 1
         #save output file
         output_wb.save(output_file)
 
 #combines data from bib record and etd record to produce a flat object that contains the necessary field values
-def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, active_embargo):
+def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, opted_out):
     data = {}
     
     #this fills the row with an error report if the associated input data is corrupt
@@ -192,19 +211,23 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
             else:
                 data[header['output']] = ''
     else:
-        #bib_xml = etree.fromstring(bib_record['anies'][0]).getroot()
         bib_xml = etree.XML(bib_record['anies'][0].encode(encoding="UTF-16"))
         etd_xml = etd_record.pq_xml()
-        #etd_xml = etree.parse(etd_record.xml_file)
-    
+        
         for header in headers:
             header_input = header['input']
             header_output = header['output']
             
             match header_input:
+                case 'comments':
+                    if opted_out:
+                        data[header['output']] = 'Opted-out during 2023 migration'
+                    ### 'Requested ProQuest takedown'
+                    else:
+                        data[header['output']] = ''
                 #taken from input CSV
                 case 'active embargo':
-                    data[header['output']] = active_embargo
+                    data[header['output']] = parse_date_to_iso(active_embargo)
                 
                 #taken from etd metadata in bag-info.txt
                 case 'First-Name' | 'Middle-Name' | 'Last-Name' | 'ProQuest-Email' : 
@@ -214,9 +237,15 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
                         data[header['output']] = ''
                 
                 #taken from bib data json
-                case 'title' | 'mms_id' | 'date_of_publication':
+                case 'title' | 'mms_id':
                     data[header['output']] = bib_record[header['input']].removesuffix(' /').removesuffix('.')
                 
+                #taken from bib data json (parsing to ISO date format)
+                case 'date_of_publication':
+                    raw_string = bib_record[header['input']].removesuffix(' /').removesuffix('.')
+                    
+                    data[header['output']] = parse_date_to_iso(raw_string)
+                    
                 #taken from bib data xml; get all subfields
                 case '050' | '300' :
                     datafields = bib_xml.xpath("//datafield[@tag=" + header['input'] +"]")
@@ -232,18 +261,12 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
                 
                 #taken from bib data xml; get all instances, subfield a
                 case '336' | '337' | '338' | '650' | '655':
-                    datafields = bib_xml.xpath("//datafield[@tag=" + header['input'] +"]")
-                    data[header['output']] = ''
-                    
-                    subfield_values = []
-                    
-                    for datafield in datafields:
-                        subfield_values.append(datafield[0].text)
-                    
+                    subfield_values = get_subfielda_value_from_all(bib_xml, header['input'])
                     data[header['output']] = ' '.join(subfield_values)
                 
                 #taken from etd's ..._DATA.xml
-                case 'para' | 'keyword' | 'inst_contact': 
+                #########inst_contact needs to go through Department Mapping from a provided XLSX file#########
+                case 'para' | 'inst_contact': 
                     found_els = etd_xml.find('.//DISS_' + header['input'])
                     if found_els != None:
                         data[header['output']] = ''.join(found_els.itertext())
@@ -279,9 +302,14 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
                         
                         data['advisor' + str(i+1)] = ' '.join(advisor_name)
                 case 'categorization': 
-                    data[header['output']] = etd_xml.find('.//DISS_cat_desc').text or ''
+                    categorization = etd_xml.find('.//DISS_cat_code').text or ''
+                    data[header['output']] = disciplines[categorization]
                 case 'url':
-                    data[header['output']] = deposit_pdf(etd_record)
+                    if opted_out:
+                        data[header['output']] = ''
+                        print('\t','OPTOUT')
+                    else:
+                        data[header['output']] = deposit_pdf(etd_record)
                 case 'committee_members': 
                     cmte_members = etd_xml.findall('.//DISS_cmte_member')
                     committee_members = [''] * len(cmte_members)
@@ -293,6 +321,28 @@ def flatten_data(headers,bib_record,etd_record, mms_id,etd_id,xml_id,year, activ
                         member_name[2] = cmte_member.find('.//DISS_surname').text or ''
                         committee_members[i] = ' '.join(member_name)
                     data[header['output']] = ', '.join(committee_members)
+                
+                # merging from two sources
+                case 'keyword,650': 
+                    keys = header['input'].split(',')
+                    values = []
+                    
+                    ### Retrieve from etd's ..._DATA.xml
+                    etd_keywords = []
+                    
+                    found_els = etd_xml.find('.//DISS_keyword')
+                    if found_els is not None and found_els.text is not None:
+                        etd_keywords.append(found_els.text)
+                    
+                    ### Retrieve from bib data xml
+                    ######### YOU NEED TO REMOVE SPACES IN THE COMMA-SEPARATED LIST#########
+                    catalog_subjects = get_subfielda_value_from_all(bib_xml, '650')
+                    
+                    ### Merge, removing duplicates
+                    merge_list = list(etd_keywords)
+                    merge_list.extend(x for x in catalog_subjects if x not in merge_list)
+                    
+                    data[header['output']] = ','.join(merge_list)
                 
                 # hard-coded
                 case 'inst_name':
@@ -333,6 +383,67 @@ def deposit_pdf(etd_record):
     shutil.copyfile(etd_record.pdf_file,os.path.join(envconfig.working_directory, 'SA_uploads', etd_record.etd_id + '.pdf'))
     
     return 'https://apps.library.albany.edu/sa_uploads/' + etd_record.etd_id + '.pdf'
+
+#parses date from string with various different possible formats and levels of accuracy
+#returns a datestring in ISO format (YYYY-MM-DD)
+def parse_date_to_iso(input_datestring):
+    parsed_date = None
+    
+    if len(input_datestring) > 0:
+        #strip excess spaces
+        input_datestring = input_datestring.lstrip()
+        
+        #attempt to parse as a month/day/year
+        try:
+            parsed_date = datetime.strptime(input_datestring, '%m/%d/%Y').date()
+        except:
+            pass
+        #attempt to parse as a month-name year
+        if parsed_date is None:
+            try:
+                parsed_date = datetime.strptime(input_datestring, '%B %Y').date()
+            except:
+                pass
+        #attempt to parse as a season/year
+        if parsed_date is None:
+            try:
+                datestring_array = input_datestring.split()
+                season = datestring_array[0]
+                year = int(datestring_array[1])
+                
+                seasons = {
+                    'Spring' : 5,
+                    'Summer' : 8,
+                    'Fall' : 12
+                }
+                
+                parsed_date = datetime(year, seasons[season], 1)
+            except:
+                pass
+        #attempt to parse as a year
+        if parsed_date is None:
+            try:
+                parsed_date = datetime.strptime(input_datestring, '%Y').date()
+            except:
+                pass
+    
+    output_datestring = ''
+    
+    if parsed_date is not None:
+        output_datestring = parsed_date.strftime('%Y-%m-%d')
+    
+    return output_datestring
+
+#retrieves all instances of a datafield
+#returns an array of subfield 'a' values from each datafield
+def get_subfielda_value_from_all(bib_xml, fieldname):
+    datafields = bib_xml.xpath("//datafield[@tag=" + fieldname + "]")
+    subfield_values = []
+    
+    for datafield in datafields:
+        subfield_values.append(datafield[0].text.removesuffix('.'))            
+    
+    return subfield_values
 
 #trigger for main method
 if __name__ == "__main__":
