@@ -52,17 +52,20 @@ def main(argv):
     input_file = ''
     output_file = ''
     optout_file = ''
+    takedown_file = ''
     disciplines_file = ''
     
     # script consumes user-provided values
     # -i flags the input file name
     # -o flags the output file name
     # -u flags the optout file name (optional)
+    # -t flags the takedown file name (optional)
+    # -d flags the discipline mapping file name (optional)
     
-    opts, args = getopt.getopt(argv,'hi:o:u:d:')
+    opts, args = getopt.getopt(argv,'hi:o:u:t:d:')
     for opt, arg in opts:
         if opt == '-h':
-            print ('migration.py -i <input-file.csv> -o <output-file.xls> [-u <optout-file.xlsx>] [-d <discipline-mapping-file.xlsx]')
+            print ('migration.py -i <input-file.csv> -o <output-file.xls> [-u <optout-file.xlsx>] [-t <takedown-file.xlsx>] [-d <discipline-mapping-file.xlsx]')
             sys.exit()
         elif opt in ['-i']:
             input_file = arg
@@ -70,6 +73,8 @@ def main(argv):
             output_file = arg
         elif opt in ['-u']:
             optout_file = arg
+        elif opt in ['-t']:
+            takedown_file = arg
         elif opt in ['-d']:
             disciplines_file = arg
     #continue only if input and output arguments are not empty
@@ -80,9 +85,12 @@ def main(argv):
     else:
         print('Gathering data...')
         
-        #create output workbook
+        #create normal output workbook and output workbook for items that require manual attention
         output_wb = xlwt.Workbook()
         output_ws = output_wb.add_sheet(' ')
+        
+        manual_output_wb = xlwt.Workbook()
+        manual_output_ws = manual_output_wb.add_sheet(' ')
         
         headers = [
             {'input':'title','output':'title'},
@@ -125,7 +133,8 @@ def main(argv):
         
         #worksheet header row
         for column,header in enumerate(headers):
-            output_ws.write(0,column,header['output']);
+            output_ws.write(0,column,header['output'])
+            manual_output_ws.write(0,column,header['output'])
         
         # read optout file
         optout_entries = set()
@@ -140,6 +149,18 @@ def main(argv):
                     optout_entries.add(row[0].value)
             
         print('Optout set: ', optout_entries)
+        
+        # read takedown file
+        takedown_entries = set()
+        
+        if takedown_file != '':
+            takedown_sheet = load_workbook(filename = takedown_file, read_only = True)['catalog_embargo_issues']
+        
+            print('Reading ProQuest Takedown File...')
+            
+            for i, row in enumerate(optout_sheet):
+                if i > 0 and row[1].value:
+                    takedown_entries.add(row[2].value)
         
         # read discipline mapping file
         disciplines = dict()
@@ -156,17 +177,17 @@ def main(argv):
                     
                     if re.search(value, 'map individually', re.IGNORECASE):
                         disciplines[key] = '**' + key + '**'
-                        ### PUT ENTRIES WITH THIS INTO A SEPARATE OUTPUT FILE, MAYBE?
                     else:
                         disciplines[key] = value_split[len(value_split) - 1]
         
         # read input file
         print('Parsing Input File...')
-        with open(input_file, newline='', encoding="utf-8") as input_csv:  ### sometimes 'cp1252'
+        with open(input_file, newline='', encoding="utf-8") as input_csv:  ### sometimes 'cp1252', sometimes 'utf-8'
             input_reader = csv.reader(input_csv)
             input_headers = next(input_reader)
             
             row_count = 0
+            manual_output_row_count = 0
             
             for row_array in input_reader:
                 mms_id          = row_array[0]
@@ -181,18 +202,28 @@ def main(argv):
                 bib_record = get_bib(mms_id)
                 etd_record = get_etd(etd_id, xml_id, year)
                 
-                data = flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, mms_id in optout_entries)
+                data = flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, mms_id in optout_entries, mms_id in takedown_entries)
                 
+                # write entry into manual_output_ws if condition is triggered
+                if data['disciplines'].find('**') > -1:
+                    for column,header in enumerate(headers):
+                        manual_output_ws.write(manual_output_row_count+1,column,data[header['output']])
+                        print('\t','MAP DISCIPLINE MANUALLY')
+                    manual_output_row_count += 1
                 # write entry into output_ws
-                for column,header in enumerate(headers):
-                    #print('Column ' + str(column) + ':' + header['output'])
-                    output_ws.write(row_count+1,column,data[header['output']])
-                row_count += 1
+                else:
+                    for column,header in enumerate(headers):
+                        output_ws.write(row_count+1,column,data[header['output']])
+                    row_count += 1
         #save output file
         output_wb.save(output_file)
+        
+        #save manual-input output file
+        manual_output_file = output_file[0:output_file.rfind('.')] + '.man.' + output_file[output_file.rfind('.')+1:len(output_file)]
+        manual_output_wb.save(manual_output_file)
 
 #combines data from bib record and etd record to produce a flat object that contains the necessary field values
-def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, opted_out):
+def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, opted_out, taken_down):
     data = {}
     
     #this fills the row with an error report if the associated input data is corrupt
@@ -222,7 +253,8 @@ def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, x
                 case 'comments':
                     if opted_out:
                         data[header['output']] = 'Opted-out during 2023 migration'
-                    ### 'Requested ProQuest takedown'
+                    if taken_down:
+                        data[header['output']] = 'Requested ProQuest takedown'
                     else:
                         data[header['output']] = ''
                 #taken from input CSV
@@ -265,8 +297,15 @@ def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, x
                     data[header['output']] = ' '.join(subfield_values)
                 
                 #taken from etd's ..._DATA.xml
-                #########inst_contact needs to go through Department Mapping from a provided XLSX file#########
-                case 'para' | 'inst_contact': 
+                
+                case 'inst_contact':
+                    found_els = etd_xml.find('.//DISS_' + header['input'])
+                    if found_els != None:
+                        data[header['output']] = ''.join(found_els.itertext())
+                        ### needs to go through Department Mapping from a provided XLSX file#########
+                    else:
+                        data[header['output']] = ''
+                case 'para': 
                     found_els = etd_xml.find('.//DISS_' + header['input'])
                     if found_els != None:
                         data[header['output']] = ''.join(found_els.itertext())
@@ -327,18 +366,17 @@ def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, x
                     keys = header['input'].split(',')
                     values = []
                     
-                    ### Retrieve from etd's ..._DATA.xml
+                    # Retrieve from etd's ..._DATA.xml
                     etd_keywords = []
                     
                     found_els = etd_xml.find('.//DISS_keyword')
                     if found_els is not None and found_els.text is not None:
-                        etd_keywords.append(found_els.text)
+                        etd_keywords += found_els.text.split(', ')
                     
-                    ### Retrieve from bib data xml
-                    ######### YOU NEED TO REMOVE SPACES IN THE COMMA-SEPARATED LIST#########
+                    # Retrieve from bib data xml
                     catalog_subjects = get_subfielda_value_from_all(bib_xml, '650')
                     
-                    ### Merge, removing duplicates
+                    # Merge, removing duplicates
                     merge_list = list(etd_keywords)
                     merge_list.extend(x for x in catalog_subjects if x not in merge_list)
                     
