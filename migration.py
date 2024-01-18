@@ -151,16 +151,26 @@ def main(argv):
         print('Optout set: ', optout_entries)
         
         # read takedown file
-        takedown_entries = set()
+        takedown_entries = {}
         
         if takedown_file != '':
             takedown_sheet = load_workbook(filename = takedown_file, read_only = True)['catalog_embargo_issues']
         
             print('Reading ProQuest Takedown File...')
             
-            for i, row in enumerate(optout_sheet):
+            for i, row in enumerate(takedown_sheet):
                 if i > 0 and row[1].value:
-                    takedown_entries.add(row[2].value)
+                    # 'mms_id' column value as key, date extrapolated from 'End date' column value as value
+                    mms_id = row[2].value
+                    end_date = row[1].value
+                    
+                    if ';' in end_date:
+                        date_string = end_date.split(';')[0]
+                        takedown_entries[mms_id] = date_string
+                    else:
+                        takedown_entries[mms_id] = ''
+        
+        print('Takedown set: ', takedown_entries.keys())
         
         # read discipline mapping file
         disciplines = dict()
@@ -196,13 +206,17 @@ def main(argv):
                 year            = row_array[3]
                 active_embargo  = row_array[4]
                 
+                # apply takedown end date, if applicable
+                if mms_id in takedown_entries.keys():
+                    active_embargo = takedown_entries[mms_id]
+                
                 print(' '.join([mms_id, etd_id, year, active_embargo]))
                 
                 # retrieve records and flatten
                 bib_record = get_bib(mms_id)
                 etd_record = get_etd(etd_id, xml_id, year)
                 
-                data = flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, mms_id in optout_entries, mms_id in takedown_entries)
+                data = flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, xml_id, year, active_embargo, mms_id in optout_entries, mms_id in takedown_entries.keys())
                 
                 # write entry into manual_output_ws if condition is triggered
                 if data['disciplines'].find('**') > -1:
@@ -253,8 +267,10 @@ def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, x
                 case 'comments':
                     if opted_out:
                         data[header['output']] = 'Opted-out during 2023 migration'
+                        print('\t','OPTOUT')
                     if taken_down:
-                        data[header['output']] = 'Requested ProQuest takedown'
+                        data[header['output']] = 'Requested ProQuest takedown; ' + ('end date on ' + active_embargo if len(active_embargo) > 0 else 'no end date')
+                        print('\t','PQ TAKEDOWN')
                     else:
                         data[header['output']] = ''
                 #taken from input CSV
@@ -344,9 +360,8 @@ def flatten_data(headers, disciplines, bib_record, etd_record, mms_id, etd_id, x
                     categorization = etd_xml.find('.//DISS_cat_code').text or ''
                     data[header['output']] = disciplines[categorization]
                 case 'url':
-                    if opted_out:
+                    if opted_out or (taken_down and len(active_embargo) == 0):
                         data[header['output']] = ''
-                        print('\t','OPTOUT')
                     else:
                         data[header['output']] = deposit_pdf(etd_record)
                 case 'committee_members': 
@@ -430,6 +445,12 @@ def parse_date_to_iso(input_datestring):
     if len(input_datestring) > 0:
         #strip excess spaces
         input_datestring = input_datestring.lstrip()
+        
+        # attempt to parse as month-day-year (format in takedown spreadsheet)
+        try:
+            parsed_date = datetime.strptime(input_datestring, '%m-%d-%y').date()
+        except:
+            pass
         
         #attempt to parse as a month/day/year
         try:
