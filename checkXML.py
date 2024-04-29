@@ -1,5 +1,6 @@
 import os
 import csv
+import tempfile
 from tqdm import tqdm
 from lxml import etree
 

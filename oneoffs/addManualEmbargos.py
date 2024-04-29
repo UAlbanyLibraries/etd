@@ -1,3 +1,4 @@
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from packages import ETD
 import os
 
@@ -9,13 +10,8 @@ else:
 # this script adds manual embargos approved by the Graduate School after submission to the preservation ETD packages
 
 manual_embargos = [
-	["Kristen", "Kaytes", "2025-07-26"],
-	["Marissa", "Louis", "2025-05-22"],
-	["Rachel", "Netzband", "2025-05-22"],
-	["Megan", "Chambers", "2025-02-28"],
-	["Meghan", "Appley", "2023-12-21"],
-	["Hadi", "Habibzadeh", "2025-01-27"],
-	["Nathan", "Bartlett", "2024-05-18"]
+	["first_name", "last_name", "embargo_date"],
+	["first_name", "last_name", "embargo_date"]
 ]
 
 
