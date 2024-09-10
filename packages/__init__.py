@@ -66,7 +66,7 @@ class ETD:
         # Validate completeness only
         #if not self.bag.is_valid(True, True):
         #    raise Exception(f"ERROR: Bag {path} is not complete")
-        self.year = self.bag.info["Completion-Date"]
+        self.year = self.bag.info["Completion-Date"].split("-")[0]
         self.year_dir = os.path.join(self.storage_path, self.year)
         self.data = os.path.join(path, "data")
         xml_id = self.bag.info["XML-ID"]
@@ -159,7 +159,7 @@ class ETD:
 
         # I guess using <DISS_comp_date> as the date
         comp_date = root.xpath("//DISS_description/DISS_dates/DISS_comp_date")[0].text
-        self.year = comp_date
+        self.year = comp_date.split("-")[0]
         self.year_dir = os.path.join(self.storage_path, comp_date)
         metadata["Completion-Date"] = comp_date
         accept_date_string = root.xpath("//DISS_description/DISS_dates/DISS_accept_date")[0].text
@@ -244,13 +244,29 @@ class ETD:
                 metadata["Embargo-Type"] = "2 year"
                 embargo_end = accept_date + relativedelta(years=+2)
             elif embargo == "4":
+                embargo_xml = None
                 metadata["Embargo-Type"] = "Specified Date"
+                # Check DISS_restriction
+                restrict = root.xpath("//DISS_restriction/DISS_sales_restriction")
+                if len(restrict) > 0:
+                    if len(restrict) > 1:
+                        raise Exception(f"ERROR: extra DISS_sales_restriction tag for {self.xml_id}") 
+                    else:
+                        if "remove" in restrict[0].attrib:
+                            embargo_remove = restrict[0].attrib['remove']
+                            embargo_xml = datetime.strptime(embargo_remove, "%m/%d/%Y")
+
                 # Go read the spreadsheet to see if embargos are there
                 embargo_date = self.check_embargo(self.xml_id, last_name, first_name)
                 if embargo_date is None:
-                    embargo_end = "Unknown"
+                    if not embargo_xml is None:
+                        print (f"Could not find offical embargo end date for {self.xml_id}, but using XMl date.")
+                        embargo_end = embargo_xml
+                    else:
+                        embargo_end = "Unknown"
                 else:
                     embargo_end = embargo_date
+
             else:
                 raise Exception(f"ERROR: Bad embargo code for {self.xml_id}") 
             if isinstance(embargo_end, str):
