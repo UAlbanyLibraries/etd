@@ -160,7 +160,7 @@ class ETD:
         # I guess using <DISS_comp_date> as the date
         comp_date = root.xpath("//DISS_description/DISS_dates/DISS_comp_date")[0].text
         self.year = comp_date.split("-")[0]
-        self.year_dir = os.path.join(self.storage_path, comp_date)
+        self.year_dir = os.path.join(self.storage_path, self.year)
         metadata["Completion-Date"] = comp_date
         accept_date_string = root.xpath("//DISS_description/DISS_dates/DISS_accept_date")[0].text
         accept_date = datetime.strptime(accept_date_string, "%m/%d/%Y").date()
