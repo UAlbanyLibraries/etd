@@ -226,7 +226,7 @@ class ETD:
 
         # Parse embargos
         embargo = root.attrib['embargo_code']
-        present = datetime.now()
+        present = datetime.now().date()
         if embargo == "0":
             metadata["Embargo"] = "False"
             metadata["Embargo-Date"] = "False"
@@ -254,7 +254,7 @@ class ETD:
                     else:
                         if "remove" in restrict[0].attrib:
                             embargo_remove = restrict[0].attrib['remove']
-                            embargo_xml = datetime.strptime(embargo_remove, "%m/%d/%Y")
+                            embargo_xml = datetime.combine(datetime.strptime(embargo_remove, "%m/%d/%Y"), datetime.min.time())
 
                 # Go read the spreadsheet to see if embargos are there
                 embargo_date = self.check_embargo(self.xml_id, last_name, first_name)
