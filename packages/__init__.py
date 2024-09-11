@@ -226,7 +226,7 @@ class ETD:
 
         # Parse embargos
         embargo = root.attrib['embargo_code']
-        present = datetime.now().date()
+        present = datetime.now()
         if embargo == "0":
             metadata["Embargo"] = "False"
             metadata["Embargo-Date"] = "False"
